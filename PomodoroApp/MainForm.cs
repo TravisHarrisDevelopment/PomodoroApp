@@ -30,6 +30,9 @@ public class MainForm : Form
     {
 		_appIcon = LoadIcon();
         InitializeComponent();
+        this.Click += StopAlarmOnUserInteraction;
+        this.Activated += StopAlarmOnUserInteraction;
+        this.MouseDown += StopAlarmOnUserInteraction;
         InitializeTray();
         WireTimerEvents();
         UpdateUI();
@@ -184,6 +187,21 @@ public class MainForm : Form
         };
     }
 
+    private void StopAlarmOnUserInteraction(object? sender, EventArgs e)
+    {
+        if (_notificationActive)
+        {
+            _notificationActive = false;
+            if (_reminderTimer != null)
+            {
+                _reminderTimer.Stop();
+                _reminderTimer.Tick -= ReminderTimer_Tick;
+                _reminderTimer.Dispose();
+                _reminderTimer = null;
+            }
+        }
+    }
+
     private void InitializeTray()
     {
         _trayMenu = new ContextMenuStrip();
@@ -220,7 +238,13 @@ public class MainForm : Form
         _trayIcon.BalloonTipClicked += (_, _) =>
         {
             _notificationActive = false;
-            _reminderTimer?.Stop();
+            if (_reminderTimer != null)
+            {
+                _reminderTimer.Stop();
+                _reminderTimer.Tick -= ReminderTimer_Tick;
+                _reminderTimer.Dispose();
+                _reminderTimer = null;
+            }
             RestoreWindow();
         };
     }
@@ -245,20 +269,36 @@ public class MainForm : Form
             _trayIcon.ShowBalloonTip(4000, "Pomodoro", message, ToolTipIcon.Info);
 
             // Start reminder timer
-            _reminderTimer?.Stop();
-            _reminderTimer = new System.Windows.Forms.Timer { Interval = 10000 };
-            _reminderTimer.Tick += (_, _) =>
+            if (_reminderTimer != null)
             {
-                if (_notificationActive)
-                    _alarm.Play();
-                else
-                    _reminderTimer?.Stop();
-            };
+                _reminderTimer.Stop();
+                _reminderTimer.Tick -= ReminderTimer_Tick;
+                _reminderTimer.Dispose();
+                _reminderTimer = null;
+            }
+            _reminderTimer = new System.Windows.Forms.Timer { Interval = 10000 };
+            _reminderTimer.Tick += ReminderTimer_Tick;
             _reminderTimer.Start();
 
         };
 
         _timer.SessionLogged += _logger.Log;
+    }
+
+    private void ReminderTimer_Tick(object? sender, EventArgs e)
+    {
+        if (_notificationActive)
+            _alarm.Play();
+        else
+        {
+            if (_reminderTimer != null)
+            {
+                _reminderTimer.Stop();
+                _reminderTimer.Tick -= ReminderTimer_Tick;
+                _reminderTimer.Dispose();
+                _reminderTimer = null;
+            }
+        }
     }
 
     private void UpdateUI()
